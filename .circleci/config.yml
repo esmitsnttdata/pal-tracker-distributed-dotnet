@@ -63,7 +63,7 @@ jobs:
             wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | apt-key add -
             echo "deb https://packages.cloudfoundry.org/debian stable main" | tee /etc/apt/sources.list.d/cloudfoundry-cli.list
             apt-get update
-            apt-get install cf-cli -y
+            apt-get install cf-cli -y --allow-unauthenticated
 
       - run:
           name: Install jq
