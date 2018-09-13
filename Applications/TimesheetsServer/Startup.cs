@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Steeltoe.CloudFoundry.Connector.MySql.EFCore;
 using Timesheets;
+using Pivotal.Discovery.Client;
+using Steeltoe.Common.Discovery;
 
 namespace TimesheetsServer
 {
@@ -24,15 +26,15 @@ namespace TimesheetsServer
         {
             // Add framework services.
             services.AddMvc();
-
+            services.AddDiscoveryClient(Configuration);
             services.AddDbContext<TimeEntryContext>(options => options.UseMySql(Configuration));
             services.AddScoped<ITimeEntryDataGateway, TimeEntryDataGateway>();
             
             services.AddSingleton<IProjectClient>(sp =>
             {
-                var httpClient = new HttpClient
-                {
-                    BaseAddress = new Uri(Configuration.GetValue<string>("REGISTRATION_SERVER_ENDPOINT"))
+                var handler = new DiscoveryHttpClientHandler(sp.GetService<IDiscoveryClient>());
+                var httpClient = new HttpClient(handler,false){
+                    BaseAddress  = new  Uri(Configuration.GetValue<string>("REGISTRATION_SERVER_ENDPOINT"))
                 };
 
                 return new ProjectClient(httpClient);
@@ -46,6 +48,7 @@ namespace TimesheetsServer
             loggerFactory.AddDebug();
 
             app.UseMvc();
+            app.UseDiscoveryClient();
         }
     }
 }
