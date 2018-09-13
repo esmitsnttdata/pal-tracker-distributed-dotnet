@@ -1,19 +1,28 @@
 ﻿using System.Net.Http;
 using System.Runtime.Serialization.Json;
 using System.Threading.Tasks;
+using Steeltoe.CircuitBreaker.Hystrix;
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+
 
 namespace Allocations
 {
     public class ProjectClient : IProjectClient
     {
         private readonly HttpClient _client;
-
-        public ProjectClient(HttpClient client)
+        private readonly ILogger<ProjectClient> _logger;
+        private readonly IDictionary<long, ProjectInfo> _projectCache = new Dictionary<long, ProjectInfo>();
+        public ProjectClient(HttpClient client ,ILogger<ProjectClient> logger )
         {
-            _client = client;
-        }
 
-        public async Task<ProjectInfo> Get(long projectId)
+            _client = client;
+             _logger = logger;
+        }
+        public async Task<ProjectInfo> Get(long projectId) =>
+            await new GetProjectCommand(DoGet, DoGetFromCache, projectId).ExecuteAsync();
+            
+                    public async Task<ProjectInfo> GetOld(long projectId)
         {
             _client.DefaultRequestHeaders.Accept.Clear();
             var streamTask = _client.GetStreamAsync($"project?projectId={projectId}");
@@ -21,5 +30,22 @@ namespace Allocations
             var serializer = new DataContractJsonSerializer(typeof(ProjectInfo));
             return serializer.ReadObject(await streamTask) as ProjectInfo;
         }
+        
+        private   async Task<ProjectInfo>  DoGet(long projectId){
+            _client.DefaultRequestHeaders.Accept.Clear();;
+            var streamTask = _client.GetStreamAsync($"project?projectId={projectId}");
+            _logger.LogInformation($"Attempting to fetch projectid: {projectId}");
+            var serializer = new DataContractJsonSerializer(typeof(ProjectInfo));
+            var project = serializer.ReadObject(await streamTask) as ProjectInfo;
+            _projectCache.Add(projectId,project);
+            _logger.LogInformation($"Caching project: {projectId}");
+            return project;
+        }
+        
+        private  Task<ProjectInfo> DoGetFromCache(long projectId){
+              _logger.LogInformation($"Retrieving from cache projectId: {projectId}");
+            return Task.FromResult(_projectCache[projectId]);
+        }
+        
     }
 }
